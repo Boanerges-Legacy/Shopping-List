@@ -16,7 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.AlertDialog
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.BasicAlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -31,9 +31,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.DialogProperties
 import com.example.myshoppinglistapp.ui.theme.MyShoppingListAppTheme
 
 class MainActivity : ComponentActivity() {
@@ -43,14 +43,16 @@ class MainActivity : ComponentActivity() {
         setContent {
             MyShoppingListAppTheme {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    ShoppingList(
-                        modifier = Modifier.padding(innerPadding)
-                    )
+                    ShoppingList(modifier = Modifier.padding(innerPadding))
                 }
             }
         }
     }
 }
+
+// ─────────────────────────────────────────────
+// SHOPPING LIST SCREEN
+// ─────────────────────────────────────────────
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -68,25 +70,46 @@ fun ShoppingList(modifier: Modifier = Modifier) {
         verticalArrangement = Arrangement.Top
     ) {
         Text(text = "Shopping List App")
-
         Spacer(modifier = Modifier.height(16.dp))
-
         Button(onClick = { showDialog = true }) {
             Text(text = "Add Item")
         }
-
         Spacer(modifier = Modifier.height(16.dp))
 
         LazyColumn(modifier = Modifier.fillMaxSize()) {
             items(shoppingList, key = { it.id }) { item ->
-                ShoppingListItem(item = item, onEditClick = {}, onDeleteClick = {})
+                if (item.isEditing) {
+                    ShoppingItemEditor(
+                        item = item,
+                        onEditComplete = { editedName, editedQuantity ->
+                            // FIX #4 & #5: removed trailing comma; now correctly applies
+                            // edited values via copy() instead of ignoring them
+                            shoppingList = shoppingList.map {
+                                if (it.id == item.id)
+                                    it.copy(name = editedName, quantity = editedQuantity, isEditing = false)
+                                else
+                                    it
+                            }
+                        }
+                    )
+                } else {
+                    // FIX #6: AddShoppingItem now only shown when NOT editing
+                    AddShoppingItem(
+                        item = item,
+                        onEditClick = {
+                            shoppingList = shoppingList.map { it.copy(isEditing = it.id == item.id) }
+                        },
+                        onDeleteClick = {
+                            shoppingList = shoppingList - item
+                        }
+                    )
+                }
             }
         }
     }
+
     if (showDialog) {
-        BasicAlertDialog(
-            onDismissRequest = { showDialog = false }
-        ) {
+        BasicAlertDialog(onDismissRequest = { showDialog = false }) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -104,7 +127,10 @@ fun ShoppingList(modifier: Modifier = Modifier) {
                 OutlinedTextField(
                     value = newItemQuantity,
                     onValueChange = { newItemQuantity = it },
-                    label = { Text("Quantity") }
+                    label = { Text("Quantity") },
+                    keyboardOptions = KeyboardOptions.Default.copy(
+                        keyboardType = KeyboardType.Number
+                    )
                 )
                 Spacer(modifier = Modifier.height(16.dp))
                 Row(
@@ -120,7 +146,7 @@ fun ShoppingList(modifier: Modifier = Modifier) {
                                 shoppingList = shoppingList + ShoppingItem(
                                     id = shoppingList.size + 1,
                                     name = newItemName,
-                                    quantity = newItemQuantity.toInt()
+                                    quantity = newItemQuantity.toIntOrNull() ?: 1
                                 )
                                 newItemName = ""
                                 newItemQuantity = ""
@@ -136,6 +162,10 @@ fun ShoppingList(modifier: Modifier = Modifier) {
     }
 }
 
+// ─────────────────────────────────────────────
+// PREVIEW
+// ─────────────────────────────────────────────
+
 @Preview(showBackground = true)
 @Composable
 fun GreetingPreview() {
@@ -144,9 +174,3 @@ fun GreetingPreview() {
     }
 }
 
-data class ShoppingItem(
-    val id: Int,
-    val name: String,
-    val quantity: Int,
-    val isEditing: Boolean = false
-)
